@@ -1,0 +1,431 @@
+Gauss-Markov Assumptions R codes
+
+if(!require(lmtest)) install.packages("lmtest")
+library(lmtest)
+
+data_text <- '
+"","Area","Code","Job_Density","Count_of_Rents","MonthlyRent_Mean","MonthlyRent_Median"
+"1","Barking and Dagenham","E09000002",0.46,"671","892","875"
+"2","Barnet","E09000003",0.65,"2,076","1,401","1,193"
+"3","Bexley","E09000004",0.53,"717","853","825"
+"4","Brent","E09000005",0.57,"1,448","1,364","1,250"
+"5","Bromley","E09000006",0.62,"1,741","1,028","940"
+"6","Camden","E09000007",2.12,"2,753","1,917","1,690"
+"7","City of London","E09000001",92.41,"148","1,941","1,733"
+"8","Croydon","E09000008",0.58,"1,445","895","900"
+"9","Ealing","E09000009",0.64,"2,456","1,191","1,148"
+"10","Enfield","E09000010",0.57,"1,329","1,081","1,000"
+"11","Greenwich","E09000011",0.46,"1,136","1,114","1,000"
+"12","Hackney","E09000012",0.62,"1,657","1,360","1,300"
+"13","Hammersmith and Fulham","E09000013",1.09,"2,048","1,835","1,560"
+"14","Haringey","E09000014",0.44,"1,496","1,181","1,100"
+"15","Harrow","E09000015",0.5,"829","1,088","1,050"
+"16","Havering","E09000016",0.56,"750","884","850"
+"17","Hillingdon","E09000017",1.15,"2,327","917","900"
+"18","Hounslow","E09000018",0.9,"1,838","1,229","1,100"
+"19","Islington","E09000019",1.3,"2,350","1,550","1,473"
+"20","Kensington and Chelsea","E09000020",1.28,"1,137","2,711","2,167"
+"21","Kingston upon Thames","E09000021",0.73,"1,489","846","425"
+"22","Lambeth","E09000022",0.66,"2,544","1,410","1,300"
+"23","Lewisham","E09000023",0.4,"2,361","985","950"
+"24","Merton","E09000024",0.65,"1,155","1,308","1,150"
+"25","Newham","E09000025",0.44,"985","972","950"
+"26","Redbridge","E09000026",0.47,"1,512","957","900"
+"27","Richmond upon Thames","E09000027",0.74,"1,741","1,521","1,275"
+"28","Southwark","E09000028",1.25,"2,829","1,352","1,250"
+"29","Sutton","E09000029",0.63,"530","933","900"
+"30","Tower Hamlets","E09000030",1.3,"1,886","1,445","1,400"
+"31","Waltham Forest","E09000031",0.43,"1,339","944","900"
+"32","Wandsworth","E09000032",0.59,"3,836","1,649","1,473"
+"33","Westminster","E09000033",4.26,"2,759","2,362","1,907"
+'
+
+
+data <- read.csv(textConnection(data_text), stringsAsFactors = FALSE)
+
+
+# Remove commas from 'Count_of_Rents' and convert to numeric
+data$Count_of_Rents <- as.numeric(gsub(",", "", data$Count_of_Rents))
+
+# Specify columns that should be numeric
+numeric_columns <- c("Job_Density", "MonthlyRent_Mean", "MonthlyRent_Median")
+
+# Remove commas and convert specified columns to numeric
+data[numeric_columns] <- lapply(data[numeric_columns], function(x) as.numeric(gsub(",", "", x)))
+
+# Check for any NA values in the numeric columns (Optional)
+# sapply(data[numeric_columns], function(x) sum(is.na(x)))
+
+
+# Perform Ordinary Least Squares (OLS) regression
+# Model: MonthlyRent_Mean = β0 + β1 * Job_Density + ε
+model <- lm(MonthlyRent_Mean ~ Job_Density, data = data)
+
+# Display the summary of the regression model
+summary(model)
+
+# Plotting the Data and Regression Line
+
+# Create a scatter plot of MonthlyRent_Mean vs. Job_Density
+plot(data$Job_Density, data$MonthlyRent_Mean,
+     xlab = "Job Density",
+     ylab = "Monthly Rent Mean (£)",
+     main = "Monthly Rent Mean vs Job Density",
+     pch = 19, col = "blue")
+
+# Add the regression line to the plot
+abline(model, col = "red", lwd = 2)
+
+# Optional: Add area labels to each point (may cause clutter)
+# text(data$Job_Density, data$MonthlyRent_Mean, labels = data$Area, pos = 4, cex = 0.7)
+
+# Diagnostic Checks for Gauss-Markov Assumptions
+
+# --------------------------------------------------------------
+# 1. Linearity of the Model in Parameters
+# --------------------------------------------------------------
+
+# The model is linear in parameters by construction.
+
+# Plot residuals vs. fitted values to check for patterns
+plot(model$fitted.values, model$residuals,
+     xlab = "Fitted Values",
+     ylab = "Residuals",
+     main = "Residuals vs Fitted Values",
+     pch = 19, col = "blue")
+abline(h = 0, col = "red", lwd = 2)
+
+# Interpretation:
+# - Look for any patterns or trends in the residuals.
+# - Residuals should be randomly scattered around zero.
+
+# --------------------------------------------------------------
+# 5. Homoscedasticity
+# --------------------------------------------------------------
+
+# Perform the Breusch-Pagan test for heteroscedasticity
+bptest_result <- bptest(model)
+print(bptest_result)
+
+# Interpretation:
+# - Null Hypothesis (H0): Homoscedasticity exists (constant variance).
+# - Alternative Hypothesis (H1): Heteroscedasticity exists (variance changes).
+# - If p-value > 0.05, fail to reject H0, indicating homoscedasticity.
+
+# 6. Normality of Residuals
+# --------------------------------------------------------------
+
+# Create a histogram of residuals
+hist(model$residuals, breaks = 10,
+     main = "Histogram of Residuals",
+     xlab = "Residuals",
+     col = "lightblue")
+
+# Create a Q-Q plot of residuals
+qqnorm(model$residuals)
+qqline(model$residuals, col = "red", lwd = 2)
+
+# Perform the Shapiro-Wilk test for normality
+shapiro_result <- shapiro.test(model$residuals)
+print(shapiro_result)
+
+# Interpretation:
+# - Null Hypothesis (H0): Residuals are normally distributed.
+# - Alternative Hypothesis (H1): Residuals are not normally distributed.
+# - If p-value > 0.05, fail to reject H0, indicating normality.
+
+# Calculate Cook's Distance for each observation
+cooks_d <- cooks.distance(model)
+
+# Plot Cook's Distance
+plot(cooks_d,
+     ylab = "Cook's Distance",
+     xlab = "Observation",
+     main = "Cook's Distance",
+     type = "h", col = "blue")
+abline(h = 4 / (nrow(data) - length(model$coefficients)), col = "red", lty = 2)
+
+# Identify influential observations
+threshold <- 4 / (nrow(data) - length(model$coefficients))
+influential <- which(cooks_d > threshold)
+
+# Print influential observations
+print("Influential Observations:")
+print(data[influential, c("Area", "Job_Density", "MonthlyRent_Mean")])
+
+# Interpretation:
+# - Observations with Cook's Distance above the threshold may influence the model significantly.
+# - Investigate these observations to understand their impact.
+
+# Remove influential observations from the data
+data_revised <- data[-influential, ]
+
+# Re-estimate the regression model without influential observations
+model_revised <- lm(MonthlyRent_Mean ~ Job_Density, data = data_revised)
+
+# Display the summary of the revised regression model
+summary(model_revised)
+
+# Compare the original and revised models
+# - Assess changes in coefficients, R-squared, and significance levels.
+
+# Plot the revised model's residuals vs. fitted values
+plot(model_revised$fitted.values, model_revised$residuals,
+     xlab = "Fitted Values",
+     ylab = "Residuals",
+     main = "Residuals vs Fitted Values ",
+     pch = 19, col = "green")
+abline(h = 0, col = "red", lwd = 2)
+
+
+# Conclusion 
+
+# Based on the diagnostic checks:
+# - The model shows a positive and significant relationship between Job Density and Monthly Rent Mean.
+
+_______________________________________________________________________________________________________________________________________________________________
+
+Result:
+ if(!require(lmtest)) install.packages("lmtest")
+> library(lmtest)
+> 
+> data_text <- '
++ "","Area","Code","Job_Density","Count_of_Rents","MonthlyRent_Mean","MonthlyRent_Median"
++ "1","Barking and Dagenham","E09000002",0.46,"671","892","875"
++ "2","Barnet","E09000003",0.65,"2,076","1,401","1,193"
++ "3","Bexley","E09000004",0.53,"717","853","825"
++ "4","Brent","E09000005",0.57,"1,448","1,364","1,250"
++ "5","Bromley","E09000006",0.62,"1,741","1,028","940"
++ "6","Camden","E09000007",2.12,"2,753","1,917","1,690"
++ "7","City of London","E09000001",92.41,"148","1,941","1,733"
++ "8","Croydon","E09000008",0.58,"1,445","895","900"
++ "9","Ealing","E09000009",0.64,"2,456","1,191","1,148"
++ "10","Enfield","E09000010",0.57,"1,329","1,081","1,000"
++ "11","Greenwich","E09000011",0.46,"1,136","1,114","1,000"
++ "12","Hackney","E09000012",0.62,"1,657","1,360","1,300"
++ "13","Hammersmith and Fulham","E09000013",1.09,"2,048","1,835","1,560"
++ "14","Haringey","E09000014",0.44,"1,496","1,181","1,100"
++ "15","Harrow","E09000015",0.5,"829","1,088","1,050"
++ "16","Havering","E09000016",0.56,"750","884","850"
++ "17","Hillingdon","E09000017",1.15,"2,327","917","900"
++ "18","Hounslow","E09000018",0.9,"1,838","1,229","1,100"
++ "19","Islington","E09000019",1.3,"2,350","1,550","1,473"
++ "20","Kensington and Chelsea","E09000020",1.28,"1,137","2,711","2,167"
++ "21","Kingston upon Thames","E09000021",0.73,"1,489","846","425"
++ "22","Lambeth","E09000022",0.66,"2,544","1,410","1,300"
++ "23","Lewisham","E09000023",0.4,"2,361","985","950"
++ "24","Merton","E09000024",0.65,"1,155","1,308","1,150"
++ "25","Newham","E09000025",0.44,"985","972","950"
++ "26","Redbridge","E09000026",0.47,"1,512","957","900"
++ "27","Richmond upon Thames","E09000027",0.74,"1,741","1,521","1,275"
++ "28","Southwark","E09000028",1.25,"2,829","1,352","1,250"
++ "29","Sutton","E09000029",0.63,"530","933","900"
++ "30","Tower Hamlets","E09000030",1.3,"1,886","1,445","1,400"
++ "31","Waltham Forest","E09000031",0.43,"1,339","944","900"
++ "32","Wandsworth","E09000032",0.59,"3,836","1,649","1,473"
++ "33","Westminster","E09000033",4.26,"2,759","2,362","1,907"
++ '
+> 
+> 
+> data <- read.csv(textConnection(data_text), stringsAsFactors = FALSE)
+> 
+> 
+> # Remove commas from 'Count_of_Rents' and convert to numeric
+> data$Count_of_Rents <- as.numeric(gsub(",", "", data$Count_of_Rents))
+> 
+> # Specify columns that should be numeric
+> numeric_columns <- c("Job_Density", "MonthlyRent_Mean", "MonthlyRent_Median")
+> 
+> # Remove commas and convert specified columns to numeric
+> data[numeric_columns] <- lapply(data[numeric_columns], function(x) as.numeric(gsub(",", "", x)))
+> 
+> # Check for any NA values in the numeric columns (Optional)
+> # sapply(data[numeric_columns], function(x) sum(is.na(x)))
+> 
+> 
+> # Perform Ordinary Least Squares (OLS) regression
+> # Model: MonthlyRent_Mean = β0 + β1 * Job_Density + ε
+> model <- lm(MonthlyRent_Mean ~ Job_Density, data = data)
+> 
+> # Display the summary of the regression model
+> summary(model)
+
+Call:
+lm(formula = MonthlyRent_Mean ~ Job_Density, data = data)
+
+Residuals:
+    Min      1Q  Median      3Q     Max 
+-437.46 -324.39  -91.74  127.10 1423.17 
+
+Coefficients:
+            Estimate Std. Error t value Pr(>|t|)    
+(Intercept) 1277.661     77.573  16.470   <2e-16 ***
+Job_Density    7.943      4.811   1.651    0.109    
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+Residual standard error: 434.1 on 31 degrees of freedom
+Multiple R-squared:  0.08083,	Adjusted R-squared:  0.05118 
+F-statistic: 2.726 on 1 and 31 DF,  p-value: 0.1088
+
+> 
+> # Plotting the Data and Regression Line
+> 
+> # Create a scatter plot of MonthlyRent_Mean vs. Job_Density
+> plot(data$Job_Density, data$MonthlyRent_Mean,
++      xlab = "Job Density",
++      ylab = "Monthly Rent Mean (£)",
++      main = "Monthly Rent Mean vs Job Density",
++      pch = 19, col = "blue")
+> 
+> # Add the regression line to the plot
+> abline(model, col = "red", lwd = 2)
+> 
+> # Optional: Add area labels to each point (may cause clutter)
+> # text(data$Job_Density, data$MonthlyRent_Mean, labels = data$Area, pos = 4, cex = 0.7)
+> 
+> # Diagnostic Checks for Gauss-Markov Assumptions
+> 
+> # --------------------------------------------------------------
+> # 1. Linearity of the Model in Parameters
+> # --------------------------------------------------------------
+> 
+> # The model is linear in parameters by construction.
+> 
+> # Plot residuals vs. fitted values to check for patterns
+> plot(model$fitted.values, model$residuals,
++      xlab = "Fitted Values",
++      ylab = "Residuals",
++      main = "Residuals vs Fitted Values",
++      pch = 19, col = "blue")
+> abline(h = 0, col = "red", lwd = 2)
+> 
+> # Interpretation:
+> # - Look for any patterns or trends in the residuals.
+> # - Residuals should be randomly scattered around zero.
+> 
+> # --------------------------------------------------------------
+> # 5. Homoscedasticity
+> # --------------------------------------------------------------
+> 
+> # Perform the Breusch-Pagan test for heteroscedasticity
+> bptest_result <- bptest(model)
+> print(bptest_result)
+
+	studentized Breusch-Pagan test
+
+data:  model
+BP = 0.10389, df = 1, p-value = 0.7472
+
+> 
+> # Interpretation:
+> # - Null Hypothesis (H0): Homoscedasticity exists (constant variance).
+> # - Alternative Hypothesis (H1): Heteroscedasticity exists (variance changes).
+> # - If p-value > 0.05, fail to reject H0, indicating homoscedasticity.
+> 
+> # 6. Normality of Residuals
+> # --------------------------------------------------------------
+> 
+> # Create a histogram of residuals
+> hist(model$residuals, breaks = 10,
++      main = "Histogram of Residuals",
++      xlab = "Residuals",
++      col = "lightblue")
+> 
+> # Create a Q-Q plot of residuals
+> qqnorm(model$residuals)
+> qqline(model$residuals, col = "red", lwd = 2)
+> 
+> # Perform the Shapiro-Wilk test for normality
+> shapiro_result <- shapiro.test(model$residuals)
+> print(shapiro_result)
+
+	Shapiro-Wilk normality test
+
+data:  model$residuals
+W = 0.84019, p-value = 0.0002086
+
+> 
+> # Interpretation:
+> # - Null Hypothesis (H0): Residuals are normally distributed.
+> # - Alternative Hypothesis (H1): Residuals are not normally distributed.
+> # - If p-value > 0.05, fail to reject H0, indicating normality.
+> 
+> # Calculate Cook's Distance for each observation
+> cooks_d <- cooks.distance(model)
+> 
+> # Plot Cook's Distance
+> plot(cooks_d,
++      ylab = "Cook's Distance",
++      xlab = "Observation",
++      main = "Cook's Distance",
++      type = "h", col = "blue")
+> abline(h = 4 / (nrow(data) - length(model$coefficients)), col = "red", lty = 2)
+> 
+> # Identify influential observations
+> threshold <- 4 / (nrow(data) - length(model$coefficients))
+> influential <- which(cooks_d > threshold)
+> 
+> # Print influential observations
+> print("Influential Observations:")
+[1] "Influential Observations:"
+> print(data[influential, c("Area", "Job_Density", "MonthlyRent_Mean")])
+                     Area Job_Density MonthlyRent_Mean
+7          City of London       92.41             1941
+20 Kensington and Chelsea        1.28             2711
+> 
+> # Interpretation:
+> # - Observations with Cook's Distance above the threshold may influence the model significantly.
+> # - Investigate these observations to understand their impact.
+> 
+> # Remove influential observations from the data
+> data_revised <- data[-influential, ]
+> 
+> # Re-estimate the regression model without influential observations
+> model_revised <- lm(MonthlyRent_Mean ~ Job_Density, data = data_revised)
+> 
+> # Display the summary of the revised regression model
+> summary(model_revised)
+
+Call:
+lm(formula = MonthlyRent_Mean ~ Job_Density, data = data_revised)
+
+Residuals:
+    Min      1Q  Median      3Q     Max 
+-436.05 -146.33  -30.89  171.87  504.64 
+
+Coefficients:
+            Estimate Std. Error t value Pr(>|t|)    
+(Intercept)   924.50      65.55  14.104 1.63e-14 ***
+Job_Density   372.66      58.90   6.327 6.52e-07 ***
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+Residual standard error: 236.1 on 29 degrees of freedom
+Multiple R-squared:  0.5799,	Adjusted R-squared:  0.5654 
+F-statistic: 40.03 on 1 and 29 DF,  p-value: 6.518e-07
+
+> 
+> # Compare the original and revised models
+> # - Assess changes in coefficients, R-squared, and significance levels.
+> 
+> # Plot the revised model's residuals vs. fitted values
+> plot(model_revised$fitted.values, model_revised$residuals,
++      xlab = "Fitted Values",
++      ylab = "Residuals",
++      main = "Residuals vs Fitted Values ",
++      pch = 19, col = "green")
+> abline(h = 0, col = "red", lwd = 2)
+> 
+> 
+> # Conclusion 
+> 
+> # Based on the diagnostic checks:
+> # - The model shows a positive and significant relationship between Job Density and Monthly Rent Mean.
+> 
+> 
+> 
+> 
+
+
+
