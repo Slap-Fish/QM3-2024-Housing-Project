@@ -1,0 +1,25 @@
+
+Table 1: An OLS model of Job Density on Median Monthly Rent in London Boroughs
+===============================================
+                        Dependent variable:    
+                    ---------------------------
+                        Median Monthly Rent    
+-----------------------------------------------
+Job Density                   6.856*           
+                              (3.801)          
+                                               
+Constant                   1,151.859***        
+                             (61.292)          
+                                               
+-----------------------------------------------
+Observations                    33             
+R2                             0.095           
+Adjusted R2                    0.066           
+Residual Std. Error      343.024 (df = 31)     
+F Statistic             3.253* (df = 1; 31)    
+===============================================
+Note:               *p<0.1; **p<0.05; ***p<0.01
+
+
+
+
