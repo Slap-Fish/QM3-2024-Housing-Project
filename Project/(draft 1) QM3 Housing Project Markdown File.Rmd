@@ -74,7 +74,7 @@ avg_rent_clean <- avg_rent_clean[-c(1,2, 3), ]
 rownames(avg_rent_clean) <- NULL
 rownames(job_density_clean) <- NULL
 
-# Remove rows of data from outsied London
+# Remove rows of data from outside London
 avg_rent_cleaned <-  avg_rent_clean[-c(34:51),]
 job_density_cleaned <- job_density_clean[-c(34:53),]
 
@@ -236,6 +236,13 @@ stargazer(model, type = "text",
           covariate.labels = "Job Density", 
           out = "Table4_OLS_JobDensity.txt")
 
+# model_with_outliers table for comparison
+stargazer(model_with_outliers, type = "text", 
+          title ="Table 1: An OLS model of Job Density on Median Monthly Rent in London Boroughs", 
+          dep.var.labels = "Median Monthly Rent", 
+          covariate.labels = "Job Density", 
+          out = "Table2_OLS_JobDensity.txt")
+
 ```
 
 The regression model (from the estimated value and the p-value) shows that there is a strong and significant positive correlation between job density and rent prices in London boroughs.
@@ -326,7 +333,7 @@ mean(model$residuals)
 
 With a mean very close to 0, our second assumption is satisfied!
 
-No we consider homoscedasticity by plotting a Scale-Location plot. We want a straight line roughly following y=const, otherwise there is an implied relationship between the residuals and the fitted values, or a non-constant error variance.
+Now we consider homoscedasticity by plotting a Scale-Location plot. We want a straight line roughly following y=const, otherwise there is an implied relationship between the residuals and the fitted values, or a non-constant error variance.
 
 ```{r scale location}
 plot(model, which =3)
