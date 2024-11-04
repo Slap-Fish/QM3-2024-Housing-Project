@@ -1,0 +1,382 @@
+---
+title: "QM3 Markdown File (Housing)"
+output: html_document
+date: "2024-11-02"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# QM3 Group Project Markdown File
+
+## Research Question
+
+Here I will explain the research question.
+
+Here I will outline the data.
+
+## The Code
+
+### 1: Setup
+
+Install packages we will be using.
+
+```{r install packages}
+install.packages("tidyverse")
+install.packages("stargazer")
+install.packages("ggplot2")
+install.packages("ggrepel")
+install.packages("HistData")
+install.packages("car")
+install.packages("performance")
+```
+
+```{r libraries}
+library(tidyverse)
+library(stargazer)
+library(ggplot2)
+library(ggrepel)
+library(HistData)
+library(car)
+library(performance)
+```
+
+Read datafiles to be analysed.
+
+```{r read}
+setwd("/Users/dennisgoldstein/Documents/BASC0056/Project")
+
+avg_rent <-read.csv("voa-average-rent-borough.csv") 
+job_density <-read.csv("jobs-and-job-density.csv")
+
+View(avg_rent)
+View(job_density)
+```
+
+Clean the data files.
+
+```{r clean}
+# Remove NA's 
+avg_rent_clean <- na.omit(avg_rent) 
+job_density_clean <- na.omit(job_density)
+
+# Keep only the columns we'll use
+avg_rent_clean <- avg_rent_clean[,c('X','X.1','X12.months.to.Q4.2012','X.26','X.28')]
+job_density_clean <- job_density_clean[,c('Code','Area','X2012')]
+
+# Rename the columns to be clearer
+colnames(avg_rent_clean)<-c("Area_Code","Area","Count_of_Rents","MonthlyRent_Mean","MonthlyRent_Median")
+colnames(job_density_clean)<-c("Code","Area","Job_Density")
+
+# Remove blank rows
+avg_rent_clean <- avg_rent_clean[-c(1,2, 3), ]
+
+# Reset row index
+rownames(avg_rent_clean) <- NULL
+rownames(job_density_clean) <- NULL
+
+# Remove rows of data from outside London
+avg_rent_cleaned <-  avg_rent_clean[-c(34:51),]
+job_density_cleaned <- job_density_clean[-c(34:53),]
+
+View(avg_rent_cleaned)
+View(job_density_cleaned)
+```
+
+Merge the data files into one dataset that we can use.
+
+```{r merge}
+full_data2012 <- merge(job_density_cleaned,avg_rent_cleaned, by="Area")
+
+# delete duplicate column
+full_data2012 <- full_data2012[,-c(4)]
+
+```
+
+Ensure all data is numeric so that we can analyse it.
+
+```{r numeric}
+numeric_columns <- c("Job_Density","Count_of_Rents", "MonthlyRent_Mean", "MonthlyRent_Median")
+
+full_data2012[numeric_columns] <- lapply(full_data2012[numeric_columns], function(x) as.numeric(gsub(",", "", x)))
+```
+
+In our actual process, we exported this cleaned data as a csv file to be analysed in different r files. We then imported this file under the name "data" in subsequent files.
+
+```{r export}
+write.csv(full_data2012,file="fulldata_2012.csv")
+
+data <- full_data2012
+
+View(data)
+```
+
+### 2: Outliers
+
+Now we need to make sure that the data we are using is good.
+
+We take an initial look at this data by creating a 'Table 1'.
+
+```{r table 1}
+stargazer(data, type="text", digits=1, title ="Table 1: summary statistics", summary=TRUE)
+```
+
+All the summary stats for MonthlyRent_Mean is significantly larger than MonthlyRent_Median, suggesting the former is disproportionately affected by outliers, so it would probably be a good idea to use MonthlyRent_Median for our analysis.
+
+Now we look at the spread of these data individually.
+
+```{r box plots}
+# Box plot for Median Rent:
+boxplot(data$MonthlyRent_Median, 
+        main = "Box Plot for Median Rent (Full Dataset)", 
+        ylab = "Median Rent Price", 
+        col = "lightblue")
+
+# Box plot for Mean Rent:
+boxplot(data$MonthlyRent_Mean, 
+        main = "Box Plot for Mean Rent (Full Dataset)", 
+        ylab = "Mean Rent Price", 
+        col = "lightblue")
+
+# Box plot for Job Density:
+boxplot(data$Job_Density, 
+        main = "Box Plot for Job Density (Full Dataset)", 
+        ylab = "Job Density", 
+        col = "lightblue")  
+```
+
+All three variables have a couple of potential outliers, so we will have to remove those before beginning our true analysis. Again, MonthlyRent_Mean has points which are relatively further from the mean of the data spread than MonthlyRent_Median.
+
+We will create a function to detect and remove outliers for us using a z-test. That way we can simply run the function on the data frame as many times as we need until all outliers are removed.
+
+```{r define z-test function}
+remove_outliers <- function(input_data, column_name) {
+  working_matrix <- data.frame(
+    Values = input_data[[column_name]],
+    Mean = mean(input_data[[column_name]]),
+    SD = sd(input_data[[column_name]])
+  )
+  input_data$z_scores <- (working_matrix$Values - working_matrix$Mean) / working_matrix$SD
+  outliers_removed <- input_data[(input_data$z_scores)^2 <= 9, ]
+  rownames(outliers_removed) <- NULL
+  outliers_removed$z_scores <- NULL
+  return(outliers_removed)
+}
+```
+
+The function remove_outliers calculates the z-scores (how many standard deviations it is from the mean of that variable) for each of the data points in a selected column, and identifies which of them has a magnitude greater than 3. Those further than 3 standard deviations from the mean are eliminated as outliers.
+
+Now we apply this function to median rent prices to remove outliers.
+
+```{r remove rent outliers}
+data_no_outliers1 <- remove_outliers(data, "MonthlyRent_Median")
+data_no_outliers2 <- remove_outliers(data, "MonthlyRent_Mean")
+
+View(data_no_outliers1)
+View(data_no_outliers2)
+```
+
+If we run this function on our data once, an outlier is removed from MonthlyRent_Mean, but not from MonthlyRent_Median. Since models generally work better on more data points, we shall only consider MonthlyRent_Median from now on, to try and maximise the number of data points we can work with.
+
+Now run the same test on job density.
+
+```{r rename data}
+data_no_outliers <- data
+```
+
+```{r remove job density outliers}
+# Set up some parameters to run this function several times, until no more outliers remain.
+new_len <- length(data_no_outliers$Job_Density)
+prev_len <- 0
+
+while (new_len != prev_len) {
+  prev_len <- new_len
+  data_no_outliers <- remove_outliers(data_no_outliers, "Job_Density")
+  new_len <- length(data_no_outliers$Job_Density)
+}
+
+View(data_no_outliers)
+```
+
+If we run the function remove_outliers on job density three times, three data points are removed as outliers from the data. No more outliers are removed if we continue to apply the function, so we have managed to eliminate the 3 outliers from our data.
+
+This is good, because we now have 30 data points in terms of job density and median rent. Any fewer data points than that and we wouldn't really be able to run any meaningful analysis.
+
+Before continuing, we'll just run a quick 'Table 2' on our data without outliers.
+
+```{r table 2}
+stargazer(data_no_outliers, type="text", digits=1, title ="Table 2: summary statistics", summary=TRUE)
+```
+
+### 3: The Model
+
+For the next section, we were astonished by how much of a difference removing the outliers made in our regression analysis, so we run the analysis on the data before and after eliminating the outliers for comparison, but we only drew conclusions from data_no_outliers.
+
+First, we display a graph to see what kind of analysis might be worth running.
+
+```{r scatter graph}
+plot(data_no_outliers$Job_Density, data_no_outliers$MonthlyRent_Median, xlab = "Job Density", ylab = "Median Rent Prices")
+```
+
+We chose to use ordinary least squares, as a linear relationship is the simplest place to start from, and the scatter graph looks like it may follow a slight positive correlation.
+
+```{r OLS}
+
+
+model <- lm(MonthlyRent_Mean ~ Job_Density, data = data_no_outliers)
+model_with_outliers <- lm(MonthlyRent_Mean ~ Job_Density, data = data)
+
+# Summary of the regression models
+summary(model)
+summary(model_with_outliers)
+
+# A more informative version of the model we are going to use
+stargazer(model, type = "text", 
+          title ="Table 2: An OLS model of Job Density on Median Monthly Rent in London Boroughs (ex-outliers)", 
+          dep.var.labels = "Median Monthly Rent", 
+          covariate.labels = "Job Density", 
+          out = "Table4_OLS_JobDensity.txt")
+
+# model_with_outliers table for comparison
+stargazer(model_with_outliers, type = "text", 
+          title ="Table 1: An OLS model of Job Density on Median Monthly Rent in London Boroughs", 
+          dep.var.labels = "Median Monthly Rent", 
+          covariate.labels = "Job Density", 
+          out = "Table2_OLS_JobDensity.txt")
+
+```
+
+The regression model (from the estimated value and the p-value) shows that there is a strong and significant positive correlation between job density and rent prices in London boroughs.
+
+Now we visualise that.
+
+```{r OLS plots}
+ggplot(data_no_outliers, aes(x = Job_Density, y = MonthlyRent_Median, label = Area)) +
+  geom_point(color = "steelblue", size = 3) +
+  geom_smooth(method = "lm", se = TRUE, color = "firebrick", linetype = "dashed") +
+  geom_text_repel(size = 3, max.overlaps = 15) +
+  labs(title = "Job Density against Median Rent",
+       subtitle = "Data from London Boroughs excluding outliers",
+       x = "Job Density",
+       y = "Monthly Median Rent (£)",
+       caption = "Source: UK Government data") +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(face = "bold", size = 14),
+    plot.subtitle = element_text(size = 10),
+    axis.title = element_text(size = 12),
+    plot.caption = element_text(size = 8)
+  )
+
+ggplot(data, aes(x = Job_Density, y = MonthlyRent_Median, label = Area)) +
+  geom_point(color = "steelblue", size = 3) +
+  geom_smooth(method = "lm", se = TRUE, color = "firebrick", linetype = "dashed") +
+  geom_text_repel(size = 3, max.overlaps = 15) +
+  labs(title = "Job Density against Median Rent ",
+       subtitle = "Full data from London Boroughs",
+       x = "Job Density",
+       y = "Monthly Median Rent (£)",
+       caption = "Source: UK Government data") +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(face = "bold", size = 14),
+    plot.subtitle = element_text(size = 10),
+    axis.title = element_text(size = 12),
+    plot.caption = element_text(size = 8)
+  )
+
+```
+
+We can see from these graphs that the outliers we dropped were the City of London, Westminster and Camden.
+
+Our OLS analysis shows a linear relationship with quite narrow error bars (unlike before removing outliers).
+
+From this we can say with relative confidence that there is some linear correlation between the density of jobs in an area in London, and how much it costs to rent there.
+
+Now it's time to evaluate how good this model is.
+
+### 4: Model Diagnostics
+
+We've made 4 assumptions running this model which, if all satisfied, will mean that our ordinary least squares regression model is the best linear unbiased estimator. If one or more of these assumptions is violated, it means that OLS is not necessarily the best model to use to explain the data trend, and we ought to look into alternatives if we are to truly understand what's going on.
+
+The assumptions we've made are: a) Residuals are normally distributed; b) There is a zero-conditional mean; c) There is constant error variance (homoscedasticty); and d) There is no autocorrelation.
+
+It's time to test whether these assumptions are satisfied by our model.
+
+First, we look at the residuals' distribution.
+
+```{r residual distribution}
+ggplot(data.frame(residuals = model$residuals), aes(x = residuals)) +
+  geom_histogram(aes(y = ..density..), bins = 15, fill = "steelblue", color = "black") +
+  geom_density(color = "red", size = 1) +
+  labs(title = "Histogram of Model Residuals", x = "Residuals", y = "Density") +
+  theme_minimal()
+```
+
+We can't necessarily tell by looking at this graph that the residuals are normally distributed, so we run a Shapiro-Wilk test to confirm.
+
+```{r shapiro-wilk}
+shapiro.test(model$residuals)
+```
+
+The p-value for this test is \> 0.05, so does not give us a statistically significant result. Therefore, we cannot say with certainty whether or not our model satistifies the assumption of normally distributed residuals.
+
+Next, we consider the conditional mean, by plotting residuals against fitted values. We're looking for a straight line roughly following y=0.
+
+```{r conditional mean}
+# produce Residuals vs Fitted plot
+plot(model, which =1)
+# We can see there's no systematic relationship between residuals and fitted values so linearity assumption is met
+mean(model$residuals)
+# Very small mean residuals so zero conditional mean is satisfied
+# The points labelled 20, 21 and 17 are not predicted well by the model, so could be outliers
+```
+
+With a mean very close to 0, our second assumption is satisfied!
+
+Now we consider homoscedasticity by plotting a Scale-Location plot. We want a straight line roughly following y=const, otherwise there is an implied relationship between the residuals and the fitted values, or a non-constant error variance.
+
+```{r scale location}
+plot(model, which =3)
+```
+
+There seems to be a slight upward trend in the data. We can confirm with a quick heteroscedasticity check.
+
+```{r heteroscedasticity}
+check_heteroscedasticity(model)
+```
+
+This test comes our positive with a p-value \< 0.05, so this assumption is definitely violated.
+
+Finally, we have autocorrelation.
+
+```{r autocorrelation}
+plot(model$residuals)
+durbinWatsonTest(model)
+```
+
+When plotting a residuals index graph we want no relationship whatsoever, and that's more or less what we see. The D-W test confirms this by outputting a statistic close to 2, 2 being the value which corresponds to no autocorrelation. So we are free to make the assumption that there is negligable autocorrelation.
+
+Now is also a good moment to check for any further outliers we may have missed, by creating a Cook's distance chart. In this line chart, all of the lines should be roughly uniform in height, as those which are much larger represent data points which may disproportionately impact the model.
+
+```{r Cook's distance}
+# Cook's distance chart
+plot(model, 4)
+```
+
+The points labelled 17, 20 and 21 are very large and, as previously identified, are probably outliers. In further analysis we should remove these data points for a more precise picture of what's going on. However, we don't have many data points as it is, so it would be a good idea to further break up London boroughs into smaller areas so that we have more data points to work with, and can afford to eliminate all of the outliers.
+
+To summarise the above diagnostics, we are able to run a single line of code that can check the model's validity for us.
+
+```{r model diagnostics}
+plot(model$residuals)
+```
+
+Again we can see that, while not disastrous, our model doesn't quite satisfy the assumptions which would make OLS the best linear unbiased estimator. There are a variety of alternative models that we could run on this data instead, such as Weighted Least Squares regression, which might help fix some of these problems. It would also be a good idea to include more data points.
+
+However, it is beyond the scope of this assignment to run alternative models, so we leave our project here, with an acknowledgement that there is some relationship between the density of jobs in an area and the cost of renting in that area, but that this may or may not be best explained by a linear correlation. There is more analysis to be done to truky understand what's going on here.
+
+### Bonus: Geospacial Analysis
+
+We did also run some tests to see if geospacial trends are present, but since these were not done in RStudio we shall not discuss them here. However, this analysis is outlined in our video presentation.
